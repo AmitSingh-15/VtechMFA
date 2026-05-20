@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34511.84
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VtechMFA", "VtechMFA\VtechMFA.csproj", "{C351094F-D394-478E-86C3-C6928D616293}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C351094F-D394-478E-86C3-C6928D616293}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C351094F-D394-478E-86C3-C6928D616293}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C351094F-D394-478E-86C3-C6928D616293}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C351094F-D394-478E-86C3-C6928D616293}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6A437C0A-1544-4CD4-A3ED-1C61D891B15D}
+	EndGlobalSection
+EndGlobal

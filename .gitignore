@@ -1,0 +1,41 @@
+# Build output
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.userprefs
+
+# Visual Studio
+.vs/
+*.opendb
+*.db
+*.pdb.bak
+
+# NuGet
+packages/
+*.nupkg
+
+# Service runtime artifacts
+service.log
+service_log.txt
+*.log
+
+# Archives / backups (do not commit)
+*.zip
+*.7z
+*.rar
+*.bak
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Tooling local config
+.claude/
+.idea/
+*.DotSettings.user
+
+# Whitelist required vendored libs (NuGet packages not on a feed)
+!VtechMFA/libs/
+!VtechMFA/libs/*.dll
