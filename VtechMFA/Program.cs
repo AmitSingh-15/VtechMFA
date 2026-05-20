@@ -218,7 +218,7 @@ namespace VtechMFA
             Tuple<string, string> publicIPs = GetPublicIP();
             var deviceInfo = new
             {
-                SerialNumber = GetSerialNumber(),
+                SerialNumber = GetDeviceId(),
                 MachineName = Environment.MachineName,
                 LocalIPv4 = GetLocalIPAddress(),
                 PublicIPv4 = publicIPs.Item1,
@@ -241,18 +241,108 @@ namespace VtechMFA
 
         #region Device info helpers
 
-        private static string GetSerialNumber()
+        /// <summary>
+        /// Resolves a stable, unique device identifier. Falls back through several sources
+        /// because BIOS vendors often leave the serial blank or set it to a placeholder like
+        /// "Default string" or "To be filled by O.E.M." on cheap/whitebox hardware.
+        /// </summary>
+        private static string GetDeviceId()
+        {
+            string biosSerial = TryWmi("SELECT SerialNumber FROM Win32_BIOS", "SerialNumber");
+            if (IsUsableId(biosSerial)) return biosSerial.Trim();
+
+            string sysUuid = TryWmi("SELECT UUID FROM Win32_ComputerSystemProduct", "UUID");
+            if (IsUsableUuid(sysUuid)) return sysUuid.Trim().ToUpperInvariant();
+
+            string machineGuid = TryReadHklm(@"SOFTWARE\Microsoft\Cryptography", "MachineGuid");
+            if (IsUsableId(machineGuid)) return machineGuid.Trim().ToUpperInvariant();
+
+            return GetOrCreatePersistedDeviceId();
+        }
+
+        private static readonly HashSet<string> _placeholderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "default string", "to be filled by o.e.m.", "to be filled by oem",
+            "none", "not specified", "system serial number", "system",
+            "unknown", "n/a", "na", "0", "1", "no asset tag",
+            "chassis serial number", "asset-1234567890", "oem", "error"
+        };
+
+        private static bool IsUsableId(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return false;
+            string t = s.Trim();
+            if (t.Length < 3) return false;
+            if (_placeholderIds.Contains(t)) return false;
+            // All zeros / dashes / dots (e.g. "00000000-0000-0000-0000-000000000000")
+            if (t.Trim('0', '-', '.', ' ').Length == 0) return false;
+            return true;
+        }
+
+        private static bool IsUsableUuid(string s)
+        {
+            if (!IsUsableId(s)) return false;
+            string normalized = s.Trim().Replace("-", "").ToLowerInvariant();
+            if (normalized.Length == 32)
+            {
+                if (normalized == new string('0', 32)) return false;
+                if (normalized == new string('f', 32)) return false;
+            }
+            return true;
+        }
+
+        private static string TryWmi(string query, string prop)
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher("SELECT SerialNumber FROM Win32_BIOS"))
+                using (var searcher = new ManagementObjectSearcher(query))
                 {
                     foreach (ManagementObject obj in searcher.Get())
-                        return obj["SerialNumber"]?.ToString() ?? "UNKNOWN";
+                        return obj[prop]?.ToString();
                 }
             }
-            catch (Exception ex) { Logger.Log("Error fetching serial number: " + ex.Message); }
-            return "ERROR";
+            catch (Exception ex) { Logger.Log("WMI " + query + " failed: " + ex.Message); }
+            return null;
+        }
+
+        private static string TryReadHklm(string subKey, string valueName)
+        {
+            try
+            {
+                using (var baseKey = Microsoft.Win32.RegistryKey.OpenBaseKey(
+                    Microsoft.Win32.RegistryHive.LocalMachine,
+                    Microsoft.Win32.RegistryView.Registry64))
+                using (var key = baseKey.OpenSubKey(subKey))
+                {
+                    return key?.GetValue(valueName)?.ToString();
+                }
+            }
+            catch (Exception ex) { Logger.Log("Registry read " + subKey + "\\" + valueName + " failed: " + ex.Message); }
+            return null;
+        }
+
+        private static string GetOrCreatePersistedDeviceId()
+        {
+            try
+            {
+                Directory.CreateDirectory(Config.DataDir);
+                string path = Path.Combine(Config.DataDir, "device-id.txt");
+                if (File.Exists(path))
+                {
+                    string existing = File.ReadAllText(path).Trim();
+                    if (IsUsableId(existing)) return existing;
+                }
+                string newId = "VTECHMFA-" + Guid.NewGuid().ToString("N").ToUpperInvariant();
+                File.WriteAllText(path, newId);
+                Logger.Log("Generated and persisted fallback device id: " + newId);
+                return newId;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Persisted device id failed: " + ex.Message);
+                // Last-ditch: derive a stable id from machine name (not globally unique, but stable per machine).
+                return "VTECHMFA-MN-" + Environment.MachineName.ToUpperInvariant();
+            }
         }
 
         private static string GetLocalIPAddress()
