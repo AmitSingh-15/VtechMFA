@@ -46,6 +46,10 @@
       <HintPath>libs\System.Text.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Microsoft.Bcl.AsyncInterfaces">
+      <HintPath>libs\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System.Buffers">
       <HintPath>libs\System.Buffers.dll</HintPath>
       <Private>True</Private>
