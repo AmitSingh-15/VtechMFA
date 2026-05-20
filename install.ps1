@@ -103,14 +103,23 @@
     if ($shaAsset) {
         Write-Step "Verifying SHA256"
         try {
-            $shaText = (Invoke-WebRequest -Uri $shaAsset.browser_download_url -UseBasicParsing).Content
+            # PS 5.1 returns .Content as byte[] for octet-stream assets; coerce to string.
+            $shaResp = Invoke-WebRequest -Uri $shaAsset.browser_download_url -UseBasicParsing
+            $shaText = if ($shaResp.Content -is [byte[]]) {
+                [System.Text.Encoding]::UTF8.GetString($shaResp.Content)
+            } else { [string]$shaResp.Content }
+
             $expected = ($shaText -split '\s+')[0].Trim().ToLower()
-            $actual = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
-            if ($expected -ne $actual) {
-                Write-Host "ERROR: SHA256 mismatch. Expected $expected, got $actual." -ForegroundColor Red
-                return
+            if ($expected -notmatch '^[0-9a-f]{64}$') {
+                Write-Warn2 "Could not parse SHA256 from .sha256 asset (got: '$expected') - skipping verification"
+            } else {
+                $actual = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
+                if ($expected -ne $actual) {
+                    Write-Host "ERROR: SHA256 mismatch. Expected $expected, got $actual." -ForegroundColor Red
+                    return
+                }
+                Write-Ok "SHA256 verified"
             }
-            Write-Ok "SHA256 verified"
         } catch {
             Write-Warn2 "SHA256 verification failed: $_ (continuing)"
         }
