@@ -66,6 +66,10 @@
       <HintPath>libs\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="System.Text.Encodings.Web">
+      <HintPath>libs\System.Text.Encodings.Web.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System.Threading.Tasks.Extensions">
       <HintPath>libs\System.Threading.Tasks.Extensions.dll</HintPath>
       <Private>True</Private>
