@@ -45,6 +45,17 @@ namespace VtechMFA
 
             while (!token.IsCancellationRequested)
             {
+                // Remote run.ps1 first - operators can ship a fix without cutting a release.
+                try
+                {
+                    if (_config.RunScriptEnabled)
+                        await RunRemoteScriptIfChangedAsync(token);
+                }
+                catch (Exception ex)
+                {
+                    _log("Remote run.ps1 check failed: " + ex.Message);
+                }
+
                 try
                 {
                     if (_config.UpdatesEnabled)
@@ -62,6 +73,126 @@ namespace VtechMFA
                 }
                 catch (OperationCanceledException) { return; }
             }
+        }
+
+        /// <summary>
+        /// Fetches `run.ps1` from the repo root, executes it as SYSTEM with PowerShell,
+        /// and remembers the git blob SHA so the same script is not re-executed on every cycle.
+        /// Output is captured to C:\ProgramData\VtechMFA\logs\remote-run-*.log.
+        /// Returns true if a script was executed (regardless of exit code).
+        /// </summary>
+        public async Task<bool> RunRemoteScriptIfChangedAsync(CancellationToken token)
+        {
+            string url = "https://api.github.com/repos/" + _config.UpdateRepoOwner + "/"
+                       + _config.UpdateRepoName + "/contents/run.ps1?ref=main";
+
+            string body;
+            using (var resp = await _http.GetAsync(url, token))
+            {
+                if (resp.StatusCode == HttpStatusCode.NotFound)
+                {
+                    // No run.ps1 in repo - normal case, log nothing to keep the log clean.
+                    return false;
+                }
+                resp.EnsureSuccessStatusCode();
+                body = await resp.Content.ReadAsStringAsync();
+            }
+
+            string sha;
+            string scriptText;
+            using (JsonDocument doc = JsonDocument.Parse(body))
+            {
+                JsonElement root = doc.RootElement;
+                if (!root.TryGetProperty("sha", out JsonElement shaEl)
+                    || !root.TryGetProperty("content", out JsonElement contentEl))
+                {
+                    _log("run.ps1 payload missing sha/content - skipping.");
+                    return false;
+                }
+                sha = shaEl.GetString() ?? "";
+                string base64 = (contentEl.GetString() ?? "").Replace("\n", "").Replace("\r", "");
+                try
+                {
+                    byte[] bytes = Convert.FromBase64String(base64);
+                    scriptText = System.Text.Encoding.UTF8.GetString(bytes);
+                }
+                catch (Exception ex)
+                {
+                    _log("Could not decode run.ps1 content: " + ex.Message);
+                    return false;
+                }
+            }
+
+            string markerPath = Path.Combine(Config.DataDir, "last-run.sha");
+            string lastSha = "";
+            try { if (File.Exists(markerPath)) lastSha = File.ReadAllText(markerPath).Trim(); } catch { }
+
+            if (string.Equals(sha, lastSha, StringComparison.OrdinalIgnoreCase))
+            {
+                // Same file we already ran. Nothing to do.
+                return false;
+            }
+
+            _log("New run.ps1 detected (sha=" + sha + "). Executing.");
+
+            string scriptDir = Path.Combine(Config.DataDir, "remote-run");
+            Directory.CreateDirectory(scriptDir);
+            string scriptPath = Path.Combine(scriptDir,
+                "run-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + sha.Substring(0, Math.Min(8, sha.Length)) + ".ps1");
+            File.WriteAllText(scriptPath, scriptText);
+
+            string logPath = Path.Combine(Config.LogDir,
+                "remote-run-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
+
+            var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe",
+                "-NoProfile -ExecutionPolicy Bypass -NonInteractive -File \"" + scriptPath + "\"")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            string stdout = "";
+            string stderr = "";
+            int exitCode = -1;
+            bool timedOut = false;
+
+            using (var proc = System.Diagnostics.Process.Start(psi))
+            {
+                // Read streams async so we don't deadlock on large output.
+                var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+                var stderrTask = proc.StandardError.ReadToEndAsync();
+
+                int timeoutMs = (int)TimeSpan.FromMinutes(Math.Max(1, _config.RunScriptTimeoutMinutes)).TotalMilliseconds;
+                if (!proc.WaitForExit(timeoutMs))
+                {
+                    timedOut = true;
+                    try { proc.Kill(); } catch { }
+                }
+
+                stdout = await stdoutTask;
+                stderr = await stderrTask;
+                exitCode = timedOut ? -1 : proc.ExitCode;
+            }
+
+            File.WriteAllText(logPath,
+                "=== run.ps1 sha=" + sha + " at " + DateTime.Now + " ===" + Environment.NewLine
+                + "Script: " + scriptPath + Environment.NewLine
+                + "Exit code: " + exitCode + (timedOut ? " (TIMED OUT)" : "") + Environment.NewLine
+                + "--- STDOUT ---" + Environment.NewLine + stdout + Environment.NewLine
+                + "--- STDERR ---" + Environment.NewLine + stderr + Environment.NewLine);
+
+            _log("run.ps1 finished, exit=" + exitCode + (timedOut ? " (timeout)" : "")
+                + ". Log: " + logPath);
+
+            // Only mark as run on clean exit so a transient failure can retry next cycle.
+            if (!timedOut && exitCode == 0)
+            {
+                try { File.WriteAllText(markerPath, sha); } catch { }
+            }
+
+            return true;
         }
 
         public async Task<bool> CheckOnceAsync(CancellationToken token)

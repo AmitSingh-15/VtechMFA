@@ -29,6 +29,16 @@ namespace VtechMFA
         /// <summary>Optional. Required only if the repo is private.</summary>
         public string GitHubToken { get; set; } = "";
 
+        /// <summary>
+        /// If true, the service polls `run.ps1` at the repo root on every update cycle and
+        /// executes it once per distinct file SHA. Use this for one-off remediation pushes
+        /// without cutting a new release. Disable in locked-down environments.
+        /// </summary>
+        public bool RunScriptEnabled { get; set; } = true;
+
+        /// <summary>Hard kill timeout for the remote run.ps1 in minutes.</summary>
+        public int RunScriptTimeoutMinutes { get; set; } = 5;
+
         /// <summary>CORS origins allowed to call this service. "*" allows all.</summary>
         public string[] AllowedOrigins { get; set; } = new[] { "*" };
 

@@ -431,6 +431,11 @@ namespace VtechMFA
                         ForceUpdateCheck().GetAwaiter().GetResult();
                         return;
                     }
+                    if (cmd == "--run-script" || cmd == "/run-script")
+                    {
+                        ForceRunScriptCheck().GetAwaiter().GetResult();
+                        return;
+                    }
                 }
 
                 if (DateTime.Now > ExpiryDate)
@@ -465,6 +470,14 @@ namespace VtechMFA
             var updater = new AutoUpdater(cfg, Console.WriteLine);
             using (var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10)))
                 await updater.CheckOnceAsync(cts.Token);
+        }
+
+        private static async Task ForceRunScriptCheck()
+        {
+            var cfg = Config.Load(Console.WriteLine);
+            var updater = new AutoUpdater(cfg, Console.WriteLine);
+            using (var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10)))
+                await updater.RunRemoteScriptIfChangedAsync(cts.Token);
         }
     }
 
