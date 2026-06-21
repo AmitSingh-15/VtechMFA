@@ -42,6 +42,29 @@ namespace VtechMFA
         /// <summary>CORS origins allowed to call this service. "*" allows all.</summary>
         public string[] AllowedOrigins { get; set; } = new[] { "*" };
 
+        // ===== Weight-scale host-mediated sync =====
+        // When a weight-scale device is plugged into this machine over USB, it has no
+        // internet of its own — this service reads its pending records over the local
+        // USB-NCM link and uploads them to the cloud on its behalf.
+
+        /// <summary>Enable the weight-scale data-mule sync worker.</summary>
+        public bool WeightScaleSyncEnabled { get; set; } = true;
+
+        /// <summary>How often to look for a connected scale and drain its records.</summary>
+        public int WeightScalePollSeconds { get; set; } = 15;
+
+        /// <summary>Port the device's local HTTP server listens on (firmware LOCAL_SYNC_SERVER_PORT).</summary>
+        public int WeightScaleDevicePort { get; set; } = 8080;
+
+        /// <summary>ICS subnet prefix used to fall back to a /info probe if ARP has no entry.</summary>
+        public string WeightScaleSubnetPrefix { get; set; } = "192.168.137.";
+
+        /// <summary>Cloud ingestion endpoints (must match the firmware's URLs). Picked by the device's reported env.</summary>
+        public string WeightScaleDevBulkUrl { get; set; } = "https://dev.etranscargo.in/weightscale/api/WeightIngestion/bulk";
+        public string WeightScaleProdBulkUrl { get; set; } = "https://etranscargo.in/weightscale/api/WeightIngestion/bulk";
+        public string WeightScaleDevHealthUrl { get; set; } = "https://dev.etranscargo.in/weightscale/health";
+        public string WeightScaleProdHealthUrl { get; set; } = "https://etranscargo.in/weightscale/health";
+
         [JsonIgnore]
         public string EndpointPrefix
         {

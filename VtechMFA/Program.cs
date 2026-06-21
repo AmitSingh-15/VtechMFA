@@ -24,6 +24,7 @@ namespace VtechMFA
         private HttpListener _listener;
         private Task _listenerTask;
         private Task _updaterTask;
+        private Task _weightScaleTask;
         private CancellationTokenSource _cts;
         private Config _config;
 
@@ -55,6 +56,12 @@ namespace VtechMFA
 
                 var updater = new AutoUpdater(_config, Logger.Log);
                 _updaterTask = Task.Run(() => updater.RunLoopAsync(_cts.Token));
+
+                if (_config.WeightScaleSyncEnabled)
+                {
+                    var wsSync = new WeightScaleSync(_config, Logger.Log);
+                    _weightScaleTask = Task.Run(() => wsSync.RunLoopAsync(_cts.Token));
+                }
             }
             catch (Exception ex)
             {
@@ -84,6 +91,10 @@ namespace VtechMFA
                 if (_updaterTask != null)
                 {
                     try { _updaterTask.Wait(2000); } catch { }
+                }
+                if (_weightScaleTask != null)
+                {
+                    try { _weightScaleTask.Wait(2000); } catch { }
                 }
             }
             catch (Exception ex)

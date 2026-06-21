@@ -90,6 +90,7 @@
     <Compile Include="AutoUpdater.cs" />
     <Compile Include="CertManager.cs" />
     <Compile Include="Config.cs" />
+    <Compile Include="WeightScaleSync.cs" />
     <Compile Include="Service1.cs">
       <SubType>Component</SubType>
     </Compile>
