@@ -56,6 +56,10 @@ namespace VtechMFA
         /// <summary>Port the device's local HTTP server listens on (firmware LOCAL_SYNC_SERVER_PORT).</summary>
         public int WeightScaleDevicePort { get; set; } = 8080;
 
+        /// <summary>The device's fixed static IP on the USB link (firmware USB_NET_STATIC_IP).
+        /// Tried first — instant, no ARP/scan. Set empty to disable and rely on discovery.</summary>
+        public string WeightScaleStaticIp { get; set; } = "192.168.137.50";
+
         /// <summary>ICS subnet prefix used to fall back to a /info probe if ARP has no entry.</summary>
         public string WeightScaleSubnetPrefix { get; set; } = "192.168.137.";
 

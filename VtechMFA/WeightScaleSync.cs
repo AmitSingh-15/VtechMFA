@@ -209,10 +209,30 @@ namespace VtechMFA
         /// </summary>
         private async Task<string> FindDeviceIpAsync(CancellationToken token)
         {
+            // 1) Fixed static IP (firmware self-assigns it) — instant, no DHCP/ARP.
+            if (!string.IsNullOrWhiteSpace(_cfg.WeightScaleStaticIp)
+                && await IsDeviceAtAsync(_cfg.WeightScaleStaticIp, token).ConfigureAwait(false))
+                return _cfg.WeightScaleStaticIp;
+
+            // 2) ARP table (works if the device used DHCP).
             string fromArp = FindIpInArpTable();
             if (fromArp != null) return fromArp;
 
+            // 3) Last resort: probe the ICS subnet.
             return await ProbeIcsSubnetAsync(token).ConfigureAwait(false);
+        }
+
+        private async Task<bool> IsDeviceAtAsync(string ip, CancellationToken token)
+        {
+            try
+            {
+                using (var probe = new HttpClient { Timeout = TimeSpan.FromMilliseconds(1500) })
+                {
+                    string body = await probe.GetStringAsync("http://" + ip + ":" + _cfg.WeightScaleDevicePort + "/info").ConfigureAwait(false);
+                    return body != null && body.IndexOf("deviceId", StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+            }
+            catch { return false; }
         }
 
         private string FindIpInArpTable()
